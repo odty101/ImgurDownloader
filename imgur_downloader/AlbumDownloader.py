@@ -65,7 +65,8 @@ class ImgurAlbumDownloader(object):
             self._links = []
 
             for item in items:
-                self._links.append(item.link)
+                if item.link.endswith('.jpg'):
+                    self._links.append(item.link)
 
         return self._links
 

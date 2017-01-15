@@ -25,8 +25,12 @@ def download_image(image_url, download_path):
     logger.debug("Downloading image from URL {} to path {}".format(
         image_url, download_path))
 
-    with urlopen(image_url) as image, open(download_path, 'wb') as f:
-        f.write(image.read())
+    try:
+        with urlopen(image_url) as image, open(download_path, 'wb') as f:
+            f.write(image.read())
+    except:
+        logger.error('Error downloading {}'.format(image_url))
+        raise
 
 
 def download_images(image_urls, download_dir):
