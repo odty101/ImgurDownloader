@@ -1,6 +1,8 @@
 import os
 import logging
 
+from configuration import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,7 +16,7 @@ def setup_download_dir(directory_name):
     if os.path.isabs(directory_name):
         path_name = str(directory_name)
     else:
-        path_name = os.path.expanduser('~/ImgurDownloader/') + str(directory_name)
+        path_name = os.path.expanduser('~') + '/' + settings.default_download_directory + '/' + str(directory_name)
 
     # If desired path is already a file raise
     if os.path.isfile(path_name):
