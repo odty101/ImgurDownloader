@@ -1,4 +1,5 @@
 import logging
+import os
 
 from urllib.request import urlopen
 from queue import Queue
@@ -22,6 +23,12 @@ class DownloadWorker(Thread):
 
 
 def download_image(image_url, download_path):
+    """
+    :param image_url: (str) The URL of the image to be downloaded
+    :param download_path: (str) The path of the image to be downloaded to
+            (Note if the download path exists it will be overridden).
+    :return:
+    """
     logger.debug("Downloading image from URL {} to path {}".format(
         image_url, download_path))
 
@@ -33,34 +40,34 @@ def download_image(image_url, download_path):
         raise
 
 
-def download_images(image_urls, download_dir):
+def download_images(images, download_dir):
     """
     Download an image from the specified URL to the specified path
 
-    :param image_urls: (list) List of URLs for the images to be downloaded from.
+    :param images: (list) List of image objects to download.
     :param download_dir: (str) Directory for the image to be written to.
     """
     # Create a queue to communicate with the workers
     queue = Queue()
 
-    # Create 12 worker threads ( TODO: dynamically adjust threads based on current system. )
+    # Create 12 worker threads
     for x in range(12):
         worker = DownloadWorker(queue)
         # Setting daemon to True will allow the main thread to exit even if the workers are blocking
         worker.daemon = True
         worker.start()
 
-    # Set the Image number to 1 so each image will have a uniq image number
-    image_num = 1
-
-    for link in image_urls:
+    for image in images:
         # Set the download path for the image
-        download_path = download_dir + '/image_{:03}'.format(image_num)
+        if not image.title:
+            download_path = download_dir + '/' + image.id
+        else:
+            download_path = download_dir + '/' + image.title
 
-        logger.info('Adding {} to queue'.format(link))
-        queue.put((link, download_path))
+        if os.path.exists(download_path):
+            download_path = download_path + '_' + str(image.id)
 
-        # Increment the image number
-        image_num += 1
+        logger.info('Adding {} to queue'.format(image.link))
+        queue.put((image.link, download_path))
 
     queue.join()
