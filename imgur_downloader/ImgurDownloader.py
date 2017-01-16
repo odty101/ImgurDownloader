@@ -1,5 +1,4 @@
 import logging
-import re
 
 from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError
@@ -28,16 +27,6 @@ class Downloader(object):
             self._client = ImgurClient(client_id=settings.client_id, client_secret=settings.client_secret)
 
         return self._client
-
-    @staticmethod
-    def get_album_id(album_url):
-        """
-        Takes the album URL and converts it to a album id
-        :return: An Imgur album id corresponding to the album url
-        """
-        album_id = re.match(r"^.*/a/(\w*)$", album_url).group(1)
-
-        return album_id
 
     def get_album_images(self, album_id):
         """
@@ -74,32 +63,27 @@ class Downloader(object):
 
         return images
 
-    def download_album(self, album_url, album_title=None, parent_download_dir=None):
+    def download_album(self, album_id, album_title=None, parent_download_dir=None):
         """
         Download the imgur images from the specified album.
 
-        :param album_url: The URL of the album to be downloaded
+        :param album_id: The ID of the album to be downloaded
         :param album_title: The title of the album to prevent duplicate lookups or for custom names (used to name the
             download directory).
         :param parent_download_dir: The parent directory to use in addition to '~/ImgurDownloads'.
         """
-        # Convert the album URL to an ID
-        album_id = self.get_album_id(album_url)
-
         # Get album title if not passed
         if not album_title:
             try:
                 album_title = self.client.get_album(album_id).title
             except ImgurClientError as e:
-                logger.error('Problem retrieving album title for album {}'.format(album_url))
-                logger.error(e.error_message)
-                logger.error(e.status_code)
+                logger.error('StatusCode: {}; Error: {}'.format(e.status_code, e.error_message))
                 raise
 
         # Get the image objects for all images in album
         images = self.get_album_images(album_id)
 
-        print('Downloading {} images from album {}'.format(len(images), album_url))
+        logger.info('Downloading {} images from album imgur.com/a/{}'.format(len(images), album_id))
 
         if not self.dry_run:
             # Create the Download directory for the album
@@ -126,6 +110,10 @@ class Downloader(object):
         # Create a list of albums and a list of images to download
         images = []
         albums = []
+
+        # Set the number of pages to one if not specified
+        if not num_pages:
+            num_pages = 1
 
         # Get a list of images and albums in the range of pages
         for page_num in range(0, num_pages):
