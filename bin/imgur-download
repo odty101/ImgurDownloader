@@ -1,4 +1,7 @@
+#!/bin/python
+
 import sys
+import re
 import argparse
 import logging
 
@@ -12,7 +15,7 @@ def parse_args(args=None):
     parser.add_argument('url',
                         type=str,
                         nargs=1,
-                        help="The URL or Sub to download.")
+                        help="The URL album, gallery, or subreddit to download.")
     parser.add_argument('--pages',
                         dest='pages',
                         type=int,
@@ -33,12 +36,28 @@ def main():
     parsed_args = parse_args()
     url = parsed_args.url[0]
 
+    if parsed_args.pages:
+        num_pages=parsed_args.pages
+    else:
+        num_pages = None
+
     client = ImgurDownloader.Downloader(dry_run=parsed_args.dry_run)
 
+    # Convert the url to the correct id to use album or sub
+    try:
+        download_id = re.match(r'^.*/[a,r]/(\w*)$', url).group(1)
+    except AttributeError as e:
+        logger.error('Unknown link type for URL: {}'.format(url))
+        raise
+
+    logger.info('Found identifier for download object: {}'.format(download_id))
+
     if '/a/' in url:
-        client.download_album(url)
-    else:
-        client.download_subreddit(url, num_pages=parsed_args.pages)
+        logger.debug('Downloading album {}'.format(download_id))
+        client.download_album(download_id)
+    elif '/r/' in url:
+        logger.debug('Downloading {} pages of sub {}'.format(num_pages, download_id))
+        client.download_subreddit(download_id, num_pages=num_pages)
 
 
 if __name__ == '__main__':
