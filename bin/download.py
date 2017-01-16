@@ -18,6 +18,11 @@ def parse_args(args=None):
                         type=int,
                         default=None,
                         help='Number of gallery (includes subreddits) pages to download.')
+    parser.add_argument('--dryrun',
+                        dest='dry_run',
+                        default=False,
+                        action='store_true',
+                        help='Turn on dry run mode')
 
     parsed_args = parser.parse_args(args or sys.argv[1:])
 
@@ -25,17 +30,15 @@ def parse_args(args=None):
 
 
 def main():
-    client = ImgurDownloader.Downloader(dry_run=True)
-
     parsed_args = parse_args()
-
-    pages = parsed_args.pages
     url = parsed_args.url[0]
+
+    client = ImgurDownloader.Downloader(dry_run=parsed_args.dry_run)
 
     if '/a/' in url:
         client.download_album(url)
     else:
-        client.download_subreddit(url, num_pages=pages)
+        client.download_subreddit(url, num_pages=parsed_args.pages)
 
 
 if __name__ == '__main__':
