@@ -1,7 +1,8 @@
 import pytest
+from unittest.mock import MagicMock, patch
+
 import os
 
-from unittest.mock import MagicMock,patch
 from imgur_downloader import directory_helper
 from configuration import settings
 
@@ -27,6 +28,7 @@ def test_get_abs_path_non_abs(monkeypatch):
 
     assert path_name == '/home/pytest/ImgurDownloader/Testing'
 
+
 def test_setup_download_dir_file_exists(monkeypatch):
     # Patch the call to get_abs_path
     monkeypatch.setattr(directory_helper, 'get_abs_path', MagicMock(return_value='/test'))
@@ -49,6 +51,7 @@ def test_setup_download_dir_directory_exists(monkeypatch):
     path_name = directory_helper.setup_download_dir('Testing')
 
     assert path_name == '/test'
+
 
 def test_setup_download_dir(monkeypatch):
     # Patch the call to get_abs_path
