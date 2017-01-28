@@ -1,73 +1,99 @@
+import threading
+import queue
 import logging
-import os
+import time
 
-from urllib.request import urlopen
-from queue import Queue
-from threading import Thread
+from requests import get
+
+from configuration import settings
 
 
 logger = logging.getLogger(__name__)
+queue_lock = threading.Lock()
 
 
-class DownloadWorker(Thread):
-    def __init__(self, queue):
-        Thread.__init__(self)
-        self.queue = queue
+class DownloadWorker(threading.Thread):
+    def __init__(self, work_queue, thread_id):
+        threading.Thread.__init__(self)
+        self.work_queue = work_queue
+        self.thread_id = thread_id
 
     def run(self):
-        while True:
-            # Get work from the queue and expand the tuple
-            link_url, download_path = self.queue.get()
-            download_image(link_url, download_path)
-            self.queue.task_done()
+        worker(self.work_queue, self.thread_id)
 
 
-def download_image(image_url, download_path):
+def worker(work_queue, thread_id):
+    logger.info('Thread {} is starting work'.format(thread_id))
+    while True:
+        queue_lock.acquire()
+        logger.debug('Thread {}: Acquired queue_lock'.format(thread_id))
+        if not work_queue.empty():
+            logger.debug('Thread {}: work_queue not empty'.format(thread_id))
+            item = work_queue.get()
+            logger.debug('Thread {}: got work item {}'.format(thread_id, item))
+            if item is None:
+                queue_lock.release()
+                logger.debug('Thread {}: Work item is None exiting'.format(thread_id))
+                break
+            link_url, download_path = item
+            queue_lock.release()
+            logger.info('Thread {}: Downloading {} to {}'.format(thread_id, link_url, download_path))
+            download(link_url, download_path)
+        else:
+            queue_lock.release()
+        time.sleep(1)
+
+
+def download(url, file_path):
     """
-    :param image_url: (str) The URL of the image to be downloaded
-    :param download_path: (str) The path of the image to be downloaded to
-            (Note if the download path exists it will be overridden).
+    :param url: (str) The URL to be downloaded
+    :param file_path: (str) The path of the file to be downloaded to
     :return:
     """
-    logger.debug("Downloading image from URL {} to path {}".format(
-        image_url, download_path))
+    # Open the file as a write buffer
+    with open(file_path, 'wb') as out_file:
+        # GET the file with request
+        response = get(url)
 
-    try:
-        with urlopen(image_url) as image, open(download_path, 'wb') as f:
-            f.write(image.read())
-    except:
-        logger.error('Error downloading {}'.format(image_url))
-        raise
+        # Write the file to the buffer
+        out_file.write(response.content)
+
+    logger.info("Downloaded image from URL {} to path {}".format(url, file_path))
 
 
-def download_images(images, download_dir):
+def download_files(files_to_download):
     """
-    Download an image from the specified URL to the specified path
+    Download a file from the specified URL to the specified path
 
-    :param images: (list) List of image objects to download.
-    :param download_dir: (str) Directory for the image to be written to.
+    :param files_to_download: A list of tuples specifying the download URL and dest file
     """
-    # Create a queue to communicate with the workers
-    queue = Queue()
+    # Retrieve the number of threads from settings
+    num_of_threads = settings.num_of_threads
 
-    # Create 12 worker threads
-    for x in range(12):
-        worker = DownloadWorker(queue)
-        # Setting daemon to True will allow the main thread to exit even if the workers are blocking
-        worker.daemon = True
-        worker.start()
+    # Create a queue to communicate with the workers and a lock
+    work_queue = queue.Queue()
+    threads = []
 
-    for image in images:
-        # Set the download path for the image
-        if not image.title:
-            download_path = download_dir + '/' + image.id
-        else:
-            download_path = download_dir + '/' + image.title
+    # Create the worker threads
+    for x in range(num_of_threads):
+        thread = DownloadWorker(work_queue, x)
+        thread.start()
+        threads.append(thread)
 
-        if os.path.exists(download_path):
-            download_path = download_path + '_' + str(image.id)
+    # Fill the queue with work
+    queue_lock.acquire()
+    for item in files_to_download:
+        work_queue.put(item)
+    queue_lock.release()
 
-        logger.info('Adding {} to queue'.format(image.link))
-        queue.put((image.link, download_path))
+    # Wait for the work queue to empty
+    while not work_queue.empty():
+        pass
 
-    queue.join()
+    # Wait for all of the thread to complete their work
+    for x in range(num_of_threads):
+        work_queue.put(None)
+    for thread in threads:
+        thread.join()
+
+    print('Download Complete')

@@ -1,11 +1,12 @@
 import logging
+import os
 
 from imgurpython import ImgurClient
 from imgurpython.helpers.error import ImgurClientError
 
 from configuration import settings
 from imgur_downloader import download_helper
-from imgur_downloader import directory_helper
+from imgur_downloader.directory_helper import setup_download_dir
 
 # Create a log handler
 logger = logging.getLogger(__name__)
@@ -27,6 +28,45 @@ class Downloader(object):
             self._client = ImgurClient(client_id=settings.client_id, client_secret=settings.client_secret)
 
         return self._client
+
+    @staticmethod
+    def download_images(images, download_directory=None):
+        """
+        Return a list of tuples (URL, File) from a list of images
+
+        :param images: A list of image objects to download
+        :param download_directory: the parent directory to place the files in
+        :return :
+        """
+        # Set the download directory
+        if not download_directory:
+            download_directory = settings.default_download_directory
+
+        # Call the directory helper to setup the download directory
+        download_dir = setup_download_dir(download_directory)
+
+        download_list = []
+
+        # Set the download dest and url for each image
+        for image in images:
+            # Set the download path for the image
+            if not image.title or len(image.title) > 30:
+                download_path = download_dir + '/' + image.id
+
+            else:
+                download_path = download_dir + '/' + image.title
+
+                if os.path.exists(download_path):
+                    download_path = download_path + '_' + str(image.id)
+
+            if os.path.exists(download_path):
+                logger.error('File {} already downloaded'.format(download_path))
+                logger.error(FileExistsError)
+            else:
+                logging.debug('Adding {} to download_list'.format(image.link))
+                download_list.append((image.link, download_path))
+
+        download_helper.download_files(download_list)
 
     def get_album_images(self, album_id):
         """
@@ -88,14 +128,12 @@ class Downloader(object):
         if not self.dry_run:
             # Create the Download directory for the album
             if not parent_download_dir:
-                directory_name = str(album_title)
+                directory_name = str(album_id)
             else:
-                directory_name = parent_download_dir + '/' + str(album_title)
+                directory_name = parent_download_dir + '/' + str(album_id)
 
-            download_dir = directory_helper.setup_download_dir(directory_name)
-
-            # Download the images to the album's Folder
-            download_helper.download_images(images, download_dir)
+            # Download the images to the specified directory
+            self.download_images(images, directory_name)
 
             print('Album {} downloaded'.format(album_title))
         else:
@@ -128,16 +166,13 @@ class Downloader(object):
 
         print('Downloading {} Images & {} Albums from "r/{}"'.format(len(images), len(albums), sub_name))
         if not self.dry_run:
-            # Create the Download directory for the sub
-            sub_dir = directory_helper.setup_download_dir(str(sub_name))
-
             # Download all of the albums images
             for album in albums:
                 logger.debug('Downloading album: {}'.format(album.link))
-                self.download_album(album.link, album.title, sub_dir)
+                self.download_album(album.id, album.title, sub_name)
 
             # Download all of the images to the download directory
-            download_helper.download_images(images, sub_dir)
+            self.download_images(images, download_directory=sub_name)
 
             print('Subreddit {} Downloaded'.format(sub_name))
         else:
